@@ -2,85 +2,74 @@
 
 > Convert HTML to Svelte components in a snap
 
-Svelte is pretty 🔥 and is a nice way to build web apps. This is a small tool that helps turn your HTML into Svelte components.
+Svelte is pretty 🔥 and offers a refreshing way to build web apps. html2svelte is a handy tool that transforms your HTML into Svelte components effortlessly.
 
-I especially like that its much easier to design/style an app, and then add logic. This is quite different than React, where you have to think about the logic/components first, and then build/style them.
+Discover the ease of transforming HTML into Svelte components with html2svelte. Whether you're converting a single file or an entire directory, html2svelte streamlines the process, helping you integrate the sleek design capabilities of Svelte into your web development workflow.
 
-There are a list of other "reasons why" you should use Svelte, but thats left as an exercise to the reader.
+## 💥 TLDR
 
-## 💃 Try it out
-
-[Convert HTML to Svelte Instantly ⚡️](https://drbh.github.io/html2svelte/)
-
-
-## 💥 TLDR;
-
-Add `comp_` to the class names of your HTML elements and run `html2svelte` on your HTML files.
+Add `comp_` to the class names of your HTML elements and run `html2svelte` on your HTML files or folders to swiftly convert them into Svelte components.
 
 <img src="images/html2svelte.png">
 
-### 📦 Install from npm
+## 📦 Install from npm
 
 ```bash
 npm install -g html2svelte
 ```
 
-### 📖 Docs
+## 📖 Commands
 
-```
-$ html2svelte help
-cli for html2svelte
+### Single File Conversion
 
-VERSION
-  html2svelte/0.0.1b darwin-x64 node-v16.17.0
+```plaintext
+$ html2svelte convert [FILE] --outDir=[OUTDIR] --prefix=[PREFIX]
 
-USAGE
-  $ html2svelte [COMMAND]
+Converts a single HTML file to a Svelte component.
 
-COMMANDS
-  convert  Convert a HTML file to Svelte Components
-  help     Display help for html2svelte
-```
+Arguments:
+  FILE     Path to the HTML file to be converted.
 
-```
-$ html2svelte convert --help
-Convert a HTML file to Svelte Components
-
-USAGE
-  $ html2svelte convert [FILE]
-
-ARGUMENTS
-  FILE  html file to convert
-
-OPTIONS
-  -o, --outDir=outDir  [default: build] folder to output the converted
-                       files to
-
-  -p, --prefix=prefix  [default: comp_] prefix to used to determine which
-                       elements to convert
+Flags:
+  -o, --outDir   Directory to output the converted Svelte file (default: 'build').
+  -p, --prefix   Prefix used to identify elements for conversion (default: 'comp_').
 ```
 
-### 🛠️ Build from source
+### Bulk Folder Conversion
+
+```plaintext
+$ html2svelte bulk-convert --folder=[FOLDER] --outDir=[OUTDIR] --prefix=[PREFIX]
+
+Converts all HTML files in a specified folder and its subfolders to Svelte components.
+
+Flags:
+  -f, --folder   Folder containing HTML files to be converted.
+  -o, --outDir   Directory to output the converted Svelte files (default: 'build').
+  -p, --prefix   Prefix used to identify elements for conversion (default: 'comp_').
+```
+
+## 🛠️ Build from source
 
 ```bash
-git clone https://github.com/drbh/html2svelte.git
+git clone https://github.com/Chizaruu/html2svelte.git
 cd html2svelte
 npm run bootstrap
-# now you can run the tool
+# Run the tool on a single file or a folder
 html2svelte convert assets/index.html
+html2svelte bulk-convert --folder assets
+# Format the output
 prettier --plugin-search-dir . build/*.svelte -w
 ```
 
 ## ⚙️ How it works
 
-1. The script will look for all the HTML file based on the cli argument passed.
-2. It parses the HTML and look for all the elements with a class name that starts with `comp_`.
-3. Then it creates a Svelte component for each of those elements, and replace the HTML with the component, writing the new HTML to the `build/` folder.
-4. `prettier` is run with the `svelte` plugin to format the final code.
+1. The script identifies HTML files based on the provided CLI argument (single file or folder).
+2. It parses each HTML file, looking for elements with class names starting with comp\_.
+3. Svelte components are created for these elements, replacing the original HTML. The new Svelte files are placed in the specified output directory.
+4. Prettier is run on the output directory to format the Svelte files.
 
-## 🧠 Thoughts
+## 🧠 Thoughts for Future Enhancements
 
-- [ ] should have built-in prettier support
-- [ ] could/should be a vs code extension
-- [ ] should support more functionality
-- [ ] should handle non single div cases better
+- Developing a VS Code extension for more convenient use within the editor.
+- Expanding functionality to cover a broader range of use cases.
+- Improving handling of complex cases, particularly those not limited to single div elements.
