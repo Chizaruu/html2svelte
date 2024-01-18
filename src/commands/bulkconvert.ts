@@ -24,43 +24,63 @@ class BulkHtmlToSvelteConverter extends Command {
      cli.action.stop('Conversion failed.');
     }
   }
+  
+   async processFolder(folderPath: string, flags: { prefix: string; outDir: string; }) {
+    // Walk through all the files in the folder and its subfolders
+    for await (const file of klaw(folderPath)) {
+      // Process only HTML files
+      if (path.extname(file.path) === '.html') {
+        // Read the content of the HTML file
+        const htmlContent = await fs.readFile(file.path, 'utf8');
+        
+        // Construct the target file path by replacing the base folder path with the output directory
+        const relativeFilePath = path.relative(folderPath, file.path);
+        const targetFilePath = path.join(flags.outDir, relativeFilePath);
 
-  async processFolder(folderPath: string, flags: { prefix: string; outDir: string; }) {
-  const files = await this.getHtmlFiles(folderPath);
-  for (const file of files) {
-    const htmlContent = await fs.readFile(file, 'utf8');
-    const relativeFilePath = path.relative(folderPath, file);
-    const targetFilePath = path.join(flags.outDir, relativeFilePath);
-    await this.processHtmlConversion(htmlContent, flags, targetFilePath);
+        // Ensure the directory for the target file exists
+        const targetDirectory = path.dirname(targetFilePath);
+        await this.ensureOutputDirectory(targetDirectory);
+
+        // Rename 'index.html' to 'App.svelte' in the final path
+        const svelteFilePath = targetFilePath.endsWith('index.html')
+          ? path.join(path.dirname(targetFilePath), 'App.svelte')
+          : targetFilePath.replace('.html', '.svelte');
+
+        // Convert the HTML content and write the Svelte file to the target path
+        await this.processHtmlConversion(htmlContent, flags, svelteFilePath);
+      }
+    }
   }
+
+  async processHtmlConversion(htmlContent: string, flags: { prefix: string; outDir: string; }, targetFilePath: string) {
+  let isConversionComplete = false;
+  let stringCopy = htmlContent;
+  
+  // We will use this variable to store the directory path where the Svelte file will be generated.
+  const outputDirectory = path.dirname(targetFilePath);
+
+  // Ensure the directory exists before proceeding.
+  await this.ensureOutputDirectory(outputDirectory);
+
+  while (!isConversionComplete) {
+    const conversionResult = await convertHtmlToSvelte({
+      prefix: flags.prefix,
+      htmlString: stringCopy,
+      // Instead of binding the outDir, we now bind the outputDirectory which respects the subdirectory structure.
+      onFinalFileComplete: (fileName, fileContent) => {
+        const finalPath = path.join(outputDirectory, `${fileName}.svelte`);
+        return fs.writeFile(finalPath, fileContent);
+      },
+    });
+
+    isConversionComplete = conversionResult.blocks.length === 0;
+    stringCopy = conversionResult.stringCopy;
+  }
+
+  // After processing, write the final Svelte file content to the targetFilePath.
+  const finalSvelteFileContent = this.constructFinalSvelteFile(stringCopy);
+  await fs.writeFile(targetFilePath, finalSvelteFileContent);
 }
-
-  async processHtmlConversion(htmlContent: any, flags: { prefix: any; outDir: string; }, targetFilePath: string) {
-    let isConversionComplete = false;
-    let stringCopy = htmlContent;
-
-    while (!isConversionComplete) {
-      const conversionResult = await convertHtmlToSvelte({
-        prefix: flags.prefix,
-        htmlString: stringCopy,
-        onFinalFileComplete: this.handleFileGeneration.bind(this, flags.outDir),
-      });
-
-      isConversionComplete = conversionResult.blocks.length === 0;
-      stringCopy = conversionResult.stringCopy;
-   }
-   
-   // Ensure the target directory exists
-   const targetDirectory = path.dirname(targetFilePath);
-   await this.ensureOutputDirectory(targetDirectory);
-
-   const finalSvelteFileContent = this.constructFinalSvelteFile(stringCopy);
-   
-    const finalFileName = path.basename(targetFilePath, '.html') === 'index'
-    ? 'App.svelte'
-    : `${path.basename(targetFilePath, '.html')}.svelte`;
-  await fs.writeFile(path.join(targetDirectory, finalFileName), finalSvelteFileContent);
- }
 
  async getHtmlFiles(dir: string): Promise<string[]> {
   let htmlFiles: string[] = [];
@@ -92,7 +112,7 @@ class BulkHtmlToSvelteConverter extends Command {
       .join('\n');
   }
 
-  async ensureOutputDirectory(directoryPath: fsSync.PathLike) {
+  async ensureOutputDirectory(directoryPath: string) {
     if (!fsSync.existsSync(directoryPath)) {
       await fs.mkdir(directoryPath, { recursive: true });
     }
