@@ -1,8 +1,8 @@
-const { flags, Command } = require('@oclif/command');
-const { cli } = require('cli-ux');
+import { flags, Command } from '@oclif/command';
+import { cli } from 'cli-ux';
 const fs = require('fs').promises;
-const fsSync = require('fs');
-const path = require('path');
+import fsSync from 'fs';
+import path from 'path';
 import { run as convertHtmlToSvelte } from '../html2svelte/index';
 
 // Asynchronously reads a file and returns its content
@@ -20,7 +20,10 @@ class HtmlToSvelteConverter extends Command {
       await this.ensureOutputDirectory(flags.outDir);
       let htmlContent = await readFileAsync(htmlFilePath);
 
-      await this.processHtmlConversion(htmlContent, flags);
+      await this.processHtmlConversion(htmlContent, {
+        prefix: flags.prefix,
+        outDir: flags.outDir,
+      });
 
       cli.action.stop('Conversion complete!');
       console.log(

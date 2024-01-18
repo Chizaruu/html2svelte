@@ -19,6 +19,7 @@
         "bootstrap": "npm install && npm run build && npm run prepack && npm install -g ."
     },
     "devDependencies": {
+        "@types/klaw": "^3.0.6",
         "@types/node": "^18.19.8",
         "fs": "^0.0.1-security",
         "prettier": "^3.2.4",
@@ -49,6 +50,7 @@
         "@oclif/plugin-help": "^5.1.23",
         "cli-ux": "^6.0.9",
         "esbuild": "^0.17.0",
+        "klaw": "^4.1.0",
         "node-html-parser": "^6.1.4"
     }
 }
