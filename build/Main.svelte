@@ -3,8 +3,8 @@
   import Bottom from "./Bottom.svelte";
   import Bottom2 from "./Bottom2.svelte";
 </script>
-<div class="comp_main">
-  <Top />
-  <Bottom />
-  <Bottom2 />
+<div class="main">
+  <Top></Top>
+  <Bottom></Bottom>
+  <Bottom2></Bottom2>
 </div>

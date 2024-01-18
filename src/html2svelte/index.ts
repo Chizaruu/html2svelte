@@ -115,16 +115,21 @@ export const run = async ({
     firstBlock.end
   );
   const importString = buildImportString(firstBlockString);
-  const fullFile = `<script>${importString}</script>${firstBlockString}`;
-  const removeEmptyScript = removeEmptyScriptTags(fullFile);
-  const formattedFullFile = await prettier.format(removeEmptyScript, {
+
+  const updatedHtmlString = removeCompPrefixFromDivClasses(
+    firstBlockString,
+    prefix
+  );
+
+  const fullFile = `<script>${importString}</script>${updatedHtmlString}`;
+
+  const cleanedFullFile = removeEmptyScriptTags(fullFile);
+
+  const formattedFullFile = await prettier.format(cleanedFullFile, {
     parser: 'html',
   });
 
-  onFinalFileComplete(
-    firstBlock.componentName,
-    removeEmptyScriptTags(formattedFullFile)
-  );
+  onFinalFileComplete(firstBlock.componentName, formattedFullFile);
 
   return {
     stringCopy: replaceHtmlWithComponent(htmlString, firstBlock),
@@ -161,4 +166,30 @@ function replaceHtmlWithComponent(
 
 function removeEmptyScriptTags(htmlString: string): string {
   return htmlString.replace(/<script>\s*<\/script>/g, '');
+}
+
+function removeCompPrefixFromDivClasses(
+  htmlString: string,
+  prefix: string
+): string {
+  const htmlTree = parser.parse(htmlString);
+
+  htmlTree.querySelectorAll('div').forEach((div) => {
+    const classAttr = div.getAttribute('class');
+    if (classAttr) {
+      const classNames = classAttr.split(' ');
+      if (classNames.some((className) => className.startsWith(prefix))) {
+        const updatedClassNames = classNames
+          .map((className) =>
+            className.startsWith(prefix)
+              ? className.slice(prefix.length)
+              : className
+          )
+          .join(' ');
+        div.setAttribute('class', updatedClassNames);
+      }
+    }
+  });
+
+  return htmlTree.toString();
 }
