@@ -1,9 +1,8 @@
 import { flags, Command } from '@oclif/command';
 import { cli } from 'cli-ux';
 import path from 'path';
-import { convertHtmlToSvelte } from '../html2svelte/index';
-import { createSvelteFileContent } from '../modules/HtmlProcessor';
 import * as FileSystemOps from '../modules/FileSystemOps';
+import { processHtmlConversion } from '../modules/SvelteConversion';
 
 class HtmlToSvelteConverter extends Command {
   async run() {
@@ -17,10 +16,11 @@ class HtmlToSvelteConverter extends Command {
 
       const outputFileName = path.basename(htmlFilePath, '.html') + '.svelte';
       const outputFilePath = path.join(flags.outDir, outputFileName);
-      await this.processHtmlConversion(
+      await processHtmlConversion(
         htmlContent,
         { prefix: flags.prefix, outDir: flags.outDir },
-        outputFilePath
+        outputFilePath,
+        (fileName) => (fileName === 'index' ? 'App' : fileName)
       );
 
       cli.action.stop('Conversion complete!');
@@ -31,35 +31,6 @@ class HtmlToSvelteConverter extends Command {
       console.error('An error occurred during the conversion process:', error);
       cli.action.stop('Conversion failed.');
     }
-  }
-
-  async processHtmlConversion(
-    htmlContent: string,
-    flags: { prefix: string; outDir: string },
-    outputFilePath: string
-  ) {
-    let isConversionComplete = false;
-    let stringCopy = htmlContent;
-
-    while (!isConversionComplete) {
-      const conversionResult = await convertHtmlToSvelte({
-        prefix: flags.prefix,
-        htmlString: stringCopy,
-        onFinalFileComplete: FileSystemOps.generateSvelteFileAsync.bind(
-          this,
-          path.dirname(outputFilePath)
-        ),
-      });
-
-      isConversionComplete = conversionResult.blocks.length === 0;
-      stringCopy = conversionResult.stringCopy;
-    }
-
-    const finalSvelteFileContent = createSvelteFileContent(stringCopy);
-    await FileSystemOps.writeFileAsync(
-      path.join(flags.outDir, 'App.svelte'),
-      finalSvelteFileContent
-    );
   }
 }
 

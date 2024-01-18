@@ -5,6 +5,7 @@ import klaw from 'klaw';
 import { convertHtmlToSvelte } from '../html2svelte/index';
 import { createSvelteFileContent } from '../modules/HtmlProcessor';
 import * as FileSystemOps from '../modules/FileSystemOps';
+import { processHtmlConversion } from '../modules/SvelteConversion';
 
 class BulkHtmlToSvelteConverter extends Command {
   async run() {
@@ -47,40 +48,10 @@ class BulkHtmlToSvelteConverter extends Command {
           : targetFilePath.replace('.html', '.svelte');
 
         // Convert the HTML content and write the Svelte file to the target path
-        await this.processHtmlConversion(htmlContent, flags, svelteFilePath);
+        await processHtmlConversion(htmlContent, flags, svelteFilePath);
       }
     }
   }
-
-  async processHtmlConversion(htmlContent: string, flags: { prefix: string; outDir: string; }, targetFilePath: string) {
-  let isConversionComplete = false;
-  let stringCopy = htmlContent;
-  
-  // We will use this variable to store the directory path where the Svelte file will be generated.
-  const outputDirectory = path.dirname(targetFilePath);
-
-  // Ensure the directory exists before proceeding.
-  await FileSystemOps.ensureDirectoryExists(outputDirectory);
-
-  while (!isConversionComplete) {
-    const conversionResult = await convertHtmlToSvelte({
-      prefix: flags.prefix,
-      htmlString: stringCopy,
-      // Instead of binding the outDir, we now bind the outputDirectory which respects the subdirectory structure.
-      onFinalFileComplete: (fileName, fileContent) => {
-        const finalPath = path.join(outputDirectory, `${fileName}.svelte`);
-        return FileSystemOps.writeFileAsync(finalPath, fileContent);
-      },
-    });
-
-    isConversionComplete = conversionResult.blocks.length === 0;
-    stringCopy = conversionResult.stringCopy;
-  }
-
-  // After processing, write the final Svelte file content to the targetFilePath.
-    const finalSvelteFileContent = createSvelteFileContent(stringCopy);
-    await FileSystemOps.writeFileAsync(targetFilePath, finalSvelteFileContent);
-}
 }
 
 BulkHtmlToSvelteConverter.description = 'Converts all HTML files in a folder and its subfolders to Svelte components.';
