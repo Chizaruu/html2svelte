@@ -2,8 +2,6 @@ import { flags, Command } from '@oclif/command';
 import { cli } from 'cli-ux';
 import path from 'path';
 import klaw from 'klaw';
-import { convertHtmlToSvelte } from '../html2svelte/index';
-import { createSvelteFileContent } from '../modules/HtmlProcessor';
 import * as FileSystemOps from '../modules/FileSystemOps';
 import { processHtmlConversion } from '../modules/SvelteConversion';
 
