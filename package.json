@@ -21,6 +21,7 @@
     "devDependencies": {
         "@types/node": "^18.19.8",
         "fs": "^0.0.1-security",
+        "prettier": "^3.2.4",
         "prettier-plugin-svelte": "^2.9.0",
         "process": "^0.11.10",
         "svelte": "^3.55.1",

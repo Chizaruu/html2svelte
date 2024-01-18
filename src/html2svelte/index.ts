@@ -1,163 +1,164 @@
-import parser, { HTMLElement } from "node-html-parser";
+import parser, { HTMLElement } from 'node-html-parser';
+import prettier from 'prettier';
 
 interface BlockData {
-    level: number;
-    start: number;
-    end: number;
-    componentName: string;
-    newComp: string;
-    diff: number;
+  level: number;
+  start: number;
+  end: number;
+  componentName: string;
+  newComp: string;
+  diff: number;
 }
 
 function hasClassAttribute(node: HTMLElement): boolean {
-    return node.rawAttrs?.includes("class");
+  return node.rawAttrs?.includes('class');
 }
 
 function extractComponentName(
-    node: HTMLElement,
-    prefix: string
+  node: HTMLElement,
+  prefix: string
 ): string | null {
-    const classMatch = node.rawAttrs?.match(/class="([^"]*)"/);
-    if (!classMatch || !classMatch[1].startsWith(prefix)) return null;
+  const classMatch = node.rawAttrs?.match(/class="([^"]*)"/);
+  if (!classMatch || !classMatch[1].startsWith(prefix)) return null;
 
-    let firstClass = classMatch[1].split(" ")[0].slice(prefix.length);
-    return firstClass.split("-").map(capitalize).join("");
+  let firstClass = classMatch[1].split(' ')[0].slice(prefix.length);
+  return firstClass.split('-').map(capitalize).join('');
 }
 
 function capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function createBlockData(
-    node: HTMLElement,
-    componentName: string,
-    level: number
+  node: HTMLElement,
+  componentName: string,
+  level: number
 ): BlockData {
-    const [start, end] = node.range;
-    const newComp = `<${componentName} />`;
-    return {
-        level: level - 2,
-        start,
-        end,
-        componentName,
-        newComp,
-        diff: end - start - newComp.length,
-    };
+  const [start, end] = node.range;
+  const newComp = `<${componentName} />`;
+  return {
+    level: level - 2,
+    start,
+    end,
+    componentName,
+    newComp,
+    diff: end - start - newComp.length,
+  };
 }
 
 export function splitHTMLTree(prefix: string, root: HTMLElement): BlockData[] {
-    function processNode(node: HTMLElement, level: number = 0): BlockData[] {
-        const blocks: BlockData[] = node.childNodes.flatMap((child) =>
-            child instanceof HTMLElement ? processNode(child, level + 1) : []
-        );
+  function processNode(node: HTMLElement, level: number = 0): BlockData[] {
+    const blocks: BlockData[] = node.childNodes.flatMap((child) =>
+      child instanceof HTMLElement ? processNode(child, level + 1) : []
+    );
 
-        if (hasClassAttribute(node)) {
-            const componentName = extractComponentName(node, prefix);
-            if (componentName) {
-                blocks.push(createBlockData(node, componentName, level));
-            }
-        }
-        return blocks;
+    if (hasClassAttribute(node)) {
+      const componentName = extractComponentName(node, prefix);
+      if (componentName) {
+        blocks.push(createBlockData(node, componentName, level));
+      }
     }
+    return blocks;
+  }
 
-    return processNode(root);
+  return processNode(root);
 }
 
-export const run = ({
-    prefix,
-    htmlString,
-    onFinalFileComplete,
+export const run = async ({
+  prefix,
+  htmlString,
+  onFinalFileComplete,
 }: {
-    prefix: string;
-    htmlString: string;
-    onFinalFileComplete: (fileName: string, fileContent: string) => void;
+  prefix: string;
+  htmlString: string;
+  onFinalFileComplete: (fileName: string, fileContent: string) => void;
 }) => {
-    const htmlTree = parser.parse(htmlString, {
-        lowerCaseTagName: true,
-        comment: false,
-        voidTag: {
-            tags: [
-                "area",
-                "base",
-                "br",
-                "col",
-                "embed",
-                "hr",
-                "img",
-                "input",
-                "link",
-                "meta",
-                "param",
-                "source",
-                "track",
-                "wbr",
-            ],
-        },
-        blockTextElements: {
-            script: true,
-            noscript: true,
-            style: true,
-            pre: true,
-        },
-    });
+  const htmlTree = parser.parse(htmlString, {
+    lowerCaseTagName: true,
+    comment: false,
+    voidTag: {
+      tags: [
+        'area',
+        'base',
+        'br',
+        'col',
+        'embed',
+        'hr',
+        'img',
+        'input',
+        'link',
+        'meta',
+        'param',
+        'source',
+        'track',
+        'wbr',
+      ],
+    },
+    blockTextElements: {
+      script: true,
+      noscript: true,
+      style: true,
+      pre: true,
+    },
+  });
 
-    let blocks = splitHTMLTree(prefix, htmlTree);
-    if (blocks.length === 0) return { stringCopy: htmlString, blocks };
+  let blocks = splitHTMLTree(prefix, htmlTree);
+  if (blocks.length === 0) return { stringCopy: htmlString, blocks };
 
-    const firstBlock = blocks.shift();
-    if (!firstBlock) return { stringCopy: htmlString, blocks: [] };
+  const firstBlock = blocks.shift();
+  if (!firstBlock) return { stringCopy: htmlString, blocks: [] };
 
-    adjustBlocks(firstBlock, blocks);
+  adjustBlocks(firstBlock, blocks);
 
-    const firstBlockString = htmlString.substring(
-        firstBlock.start,
-        firstBlock.end
-    );
-    const importString = buildImportString(firstBlockString);
-    const fullFile = `<script>\n${importString}</script>\n${firstBlockString}\n`;
+  const firstBlockString = htmlString.substring(
+    firstBlock.start,
+    firstBlock.end
+  );
+  const importString = buildImportString(firstBlockString);
+  const fullFile = `<script>${importString}</script>${firstBlockString}`;
+  const removeEmptyScript = removeEmptyScriptTags(fullFile);
+  const formattedFullFile = await prettier.format(removeEmptyScript, {
+    parser: 'html',
+  });
 
-    onFinalFileComplete(
-        firstBlock.componentName,
-        removeEmptyScriptTags(fullFile)
-    );
+  onFinalFileComplete(
+    firstBlock.componentName,
+    removeEmptyScriptTags(formattedFullFile)
+  );
 
-    return {
-        stringCopy: replaceHtmlWithComponent(htmlString, firstBlock),
-        blocks,
-    };
+  return {
+    stringCopy: replaceHtmlWithComponent(htmlString, firstBlock),
+    blocks,
+  };
 };
 
 function adjustBlocks(firstBlock: BlockData, blocks: BlockData[]) {
-    blocks.forEach((block) => {
-        const offset = block.start >= firstBlock.start ? firstBlock.diff : 0;
-        block.start -= offset;
-        block.end -= offset;
-    });
+  blocks.forEach((block) => {
+    const offset = block.start >= firstBlock.start ? firstBlock.diff : 0;
+    block.start -= offset;
+    block.end -= offset;
+  });
 }
 
 function buildImportString(htmlString: string): string {
-    return (htmlString.match(/<[A-Z].* \/>/g) ?? [])
-        .map(
-            (tag) =>
-                `import ${tag.slice(1, -3)} from './${tag.slice(
-                    1,
-                    -3
-                )}.svelte';`
-        )
-        .join("\n");
+  return (htmlString.match(/<[A-Z].* \/>/g) ?? [])
+    .map(
+      (tag) => `import ${tag.slice(1, -3)} from './${tag.slice(1, -3)}.svelte';`
+    )
+    .join('\n');
 }
 
 function replaceHtmlWithComponent(
-    htmlString: string,
-    block: BlockData
+  htmlString: string,
+  block: BlockData
 ): string {
-    return (
-        htmlString.slice(0, block.start) +
-        block.newComp +
-        htmlString.slice(block.end)
-    );
+  return (
+    htmlString.slice(0, block.start) +
+    block.newComp +
+    htmlString.slice(block.end)
+  );
 }
 
 function removeEmptyScriptTags(htmlString: string): string {
-    return htmlString.replace(/<script>\s*<\/script>/g, "");
+  return htmlString.replace(/<script>\s*<\/script>/g, '');
 }

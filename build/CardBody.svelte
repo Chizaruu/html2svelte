@@ -1,4 +1,3 @@
-
 <div class="comp_card-body">
-        <p>🐳 a whale</p>
-      </div>
+  <p>🐳 a whale</p>
+</div>
