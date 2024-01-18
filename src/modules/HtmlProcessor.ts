@@ -22,7 +22,7 @@ function extractAndGenerateImports(htmlContent: string): string {
  * @param htmlContent - The HTML content to be included in the Svelte file.
  * @returns A string representing the complete content of a Svelte file.
  */
-export function createSvelteFileContent(htmlContent: string): string {
+export function wrapHtmlInSvelteStructure(htmlContent: string): string {
   const importStatements = extractAndGenerateImports(htmlContent);
   return `<script>\n${importStatements}\n</script>\n${htmlContent}`;
 }
