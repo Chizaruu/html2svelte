@@ -1,5 +1,4 @@
 import { promises as fs } from 'fs';
-import fsSync from 'fs';
 import path from 'path';
 
 /**
@@ -17,7 +16,7 @@ export async function readFileAsync(filePath: string): Promise<string> {
  * @param filePath - The path to the file where content will be written.
  * @param content - The content to write to the file.
  */
-export async function writeFile(filePath: string, content: string): Promise<void> {
+export async function writeFileAsync(filePath: string, content: string): Promise<void> {
   return fs.writeFile(filePath, content);
 }
 
@@ -27,14 +26,23 @@ export async function writeFile(filePath: string, content: string): Promise<void
  * @param directoryPath - The path to the directory to check or create.
  */
 export async function ensureDirectoryExists(directoryPath: string): Promise<void> {
-  if (!fsSync.existsSync(directoryPath)) {
+  try {
+    await fs.access(directoryPath);
+  } catch {
     await fs.mkdir(directoryPath, { recursive: true });
   }
 }
 
-export async function handleFileGeneration(outputDirectory: string, fileName: string, fileContent: any) {
-  // If the source HTML file is named 'index', rename the Svelte file to 'App'
+
+/**
+ * Generates a Svelte file in the specified directory with the given content.
+ * If the source HTML file is named 'index', the Svelte file is named 'App.svelte'.
+ * @param outputDirectory - The directory where the Svelte file will be created.
+ * @param fileName - The base name for the Svelte file.
+ * @param fileContent - The content to be written to the Svelte file.
+ */
+export async function generateSvelteFileAsync(outputDirectory: string, fileName: string, fileContent: string): Promise<void> {
   const svelteFileName = fileName === 'index' ? 'App' : fileName;
   const filePath = path.join(outputDirectory, `${svelteFileName}.svelte`);
-  return fs.writeFile(filePath, fileContent);
+  await writeFileAsync(filePath, fileContent);
 }

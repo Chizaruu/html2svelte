@@ -2,13 +2,8 @@ import { flags, Command } from '@oclif/command';
 import { cli } from 'cli-ux';
 import path from 'path';
 import { convertHtmlToSvelte } from '../html2svelte/index';
-import { constructFinalSvelteFile } from '../modules/HtmlProcessor';
-import {
-  ensureDirectoryExists,
-  handleFileGeneration,
-  readFileAsync,
-  writeFile,
-} from '../modules/FileSystemOps';
+import { createSvelteFileContent } from '../modules/HtmlProcessor';
+import * as FileSystemOps from '../modules/FileSystemOps';
 
 class HtmlToSvelteConverter extends Command {
   async run() {
@@ -17,8 +12,8 @@ class HtmlToSvelteConverter extends Command {
       cli.action.start('Starting HTML to Svelte conversion');
 
       const htmlFilePath = args.file;
-      await ensureDirectoryExists(flags.outDir);
-      let htmlContent = await readFileAsync(htmlFilePath);
+      await FileSystemOps.ensureDirectoryExists(flags.outDir);
+      let htmlContent = await FileSystemOps.readFileAsync(htmlFilePath);
 
       const outputFileName = path.basename(htmlFilePath, '.html') + '.svelte';
       const outputFilePath = path.join(flags.outDir, outputFileName);
@@ -50,7 +45,7 @@ class HtmlToSvelteConverter extends Command {
       const conversionResult = await convertHtmlToSvelte({
         prefix: flags.prefix,
         htmlString: stringCopy,
-        onFinalFileComplete: handleFileGeneration.bind(
+        onFinalFileComplete: FileSystemOps.generateSvelteFileAsync.bind(
           this,
           path.dirname(outputFilePath)
         ),
@@ -60,8 +55,8 @@ class HtmlToSvelteConverter extends Command {
       stringCopy = conversionResult.stringCopy;
     }
 
-    const finalSvelteFileContent = constructFinalSvelteFile(stringCopy);
-    await writeFile(
+    const finalSvelteFileContent = createSvelteFileContent(stringCopy);
+    await FileSystemOps.writeFileAsync(
       path.join(flags.outDir, 'App.svelte'),
       finalSvelteFileContent
     );

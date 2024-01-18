@@ -1,23 +1,28 @@
 /**
- * Generates Svelte import statements from the HTML content.
- * It looks for self-closing component tags in the HTML and creates corresponding import statements.
- * @param htmlContent - The HTML content from which to extract component tags.
+ * Extracts Svelte component tags from the HTML content and generates import statements.
+ * @param htmlContent - The HTML content from which to extract Svelte component tags.
  * @returns A string containing import statements for the Svelte components found in the HTML content.
  */
-function generateImportStatements(htmlContent: string) {
-    const componentTags = htmlContent.match(/<[A-Z].* \/>/g) ?? [];
-    return componentTags
-      .map((tag: string | any[]) => `import ${tag.slice(1, -3)} from './${tag.slice(1, -3)}.svelte';`)
-      .join('\n');
+function extractAndGenerateImports(htmlContent: string): string {
+  const componentTagRegex = /<([A-Z]\w+).*?\/>/g;
+  const uniqueComponentNames = new Set<string>();
+
+  let match;
+  while ((match = componentTagRegex.exec(htmlContent)) !== null) {
+    uniqueComponentNames.add(match[1]);
+  }
+
+  return Array.from(uniqueComponentNames)
+    .map(componentName => `import ${componentName} from './${componentName}.svelte';`)
+    .join('\n');
 }
 
 /**
- * Constructs a final Svelte file from the provided HTML content.
- * It wraps the HTML content with a script tag (containing import statements) and a style tag.
+ * Creates a Svelte file content by wrapping the provided HTML content with necessary Svelte structure.
  * @param htmlContent - The HTML content to be included in the Svelte file.
  * @returns A string representing the complete content of a Svelte file.
  */
-export function constructFinalSvelteFile(htmlContent: any) {
-    const importStatements = generateImportStatements(htmlContent);
-    return `<script>\n${importStatements}\n</script>\n${htmlContent}`;
-  }
+export function createSvelteFileContent(htmlContent: string): string {
+  const importStatements = extractAndGenerateImports(htmlContent);
+  return `<script>\n${importStatements}\n</script>\n${htmlContent}`;
+}

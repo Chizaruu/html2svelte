@@ -1,5 +1,5 @@
 import { convertHtmlToSvelte } from '../html2svelte/index';
-import { constructFinalSvelteFile } from './HtmlProcessor';
+import { createSvelteFileContent } from './HtmlProcessor';
 import * as FileSystemOps from './FileSystemOps';
 import path from 'path';
 
@@ -19,12 +19,12 @@ export async function processHtmlConversion(
     htmlString: htmlContent,
     onFinalFileComplete: async (fileName: any, fileContent: string) => {
       const finalPath = path.join(path.dirname(targetFilePath), `${fileName}.svelte`);
-      await FileSystemOps.writeFile(finalPath, fileContent);
+      await FileSystemOps.writeFileAsync(finalPath, fileContent);
     },
   });
 
   if (conversionResult.blocks.length === 0) {
-    const finalSvelteFileContent = constructFinalSvelteFile(htmlContent);
-    await FileSystemOps.writeFile(targetFilePath, finalSvelteFileContent);
+    const finalSvelteFileContent = createSvelteFileContent(htmlContent);
+    await FileSystemOps.writeFileAsync(targetFilePath, finalSvelteFileContent);
   }
 }

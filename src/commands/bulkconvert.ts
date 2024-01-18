@@ -1,11 +1,10 @@
 import { flags, Command } from '@oclif/command';
 import { cli } from 'cli-ux';
-const fs = require('fs').promises;
 import path from 'path';
 import klaw from 'klaw';
 import { convertHtmlToSvelte } from '../html2svelte/index';
-import { constructFinalSvelteFile } from '../modules/HtmlProcessor';
-import { ensureDirectoryExists } from '../modules/FileSystemOps';
+import { createSvelteFileContent } from '../modules/HtmlProcessor';
+import * as FileSystemOps from '../modules/FileSystemOps';
 
 class BulkHtmlToSvelteConverter extends Command {
   async run() {
@@ -13,7 +12,7 @@ class BulkHtmlToSvelteConverter extends Command {
     cli.action.start('Starting bulk HTML to Svelte conversion');
 
     try {
-     await ensureDirectoryExists(flags.outDir);
+     await FileSystemOps.ensureDirectoryExists(flags.outDir);
      await this.processFolder(flags.folder, { prefix: flags.prefix, outDir: flags.outDir });
 
      cli.action.stop('Conversion complete!');
@@ -32,7 +31,7 @@ class BulkHtmlToSvelteConverter extends Command {
       // Process only HTML files
       if (path.extname(file.path) === '.html') {
         // Read the content of the HTML file
-        const htmlContent = await fs.readFile(file.path, 'utf8');
+        const htmlContent = await FileSystemOps.readFileAsync(file.path);
         
         // Construct the target file path by replacing the base folder path with the output directory
         const relativeFilePath = path.relative(folderPath, file.path);
@@ -40,7 +39,7 @@ class BulkHtmlToSvelteConverter extends Command {
 
         // Ensure the directory for the target file exists
         const targetDirectory = path.dirname(targetFilePath);
-        await ensureDirectoryExists(targetDirectory);
+        await FileSystemOps.ensureDirectoryExists(targetDirectory);
 
         // Rename 'index.html' to 'App.svelte' in the final path
         const svelteFilePath = targetFilePath.endsWith('index.html')
@@ -61,7 +60,7 @@ class BulkHtmlToSvelteConverter extends Command {
   const outputDirectory = path.dirname(targetFilePath);
 
   // Ensure the directory exists before proceeding.
-  await ensureDirectoryExists(outputDirectory);
+  await FileSystemOps.ensureDirectoryExists(outputDirectory);
 
   while (!isConversionComplete) {
     const conversionResult = await convertHtmlToSvelte({
@@ -70,7 +69,7 @@ class BulkHtmlToSvelteConverter extends Command {
       // Instead of binding the outDir, we now bind the outputDirectory which respects the subdirectory structure.
       onFinalFileComplete: (fileName, fileContent) => {
         const finalPath = path.join(outputDirectory, `${fileName}.svelte`);
-        return fs.writeFile(finalPath, fileContent);
+        return FileSystemOps.writeFileAsync(finalPath, fileContent);
       },
     });
 
@@ -79,8 +78,8 @@ class BulkHtmlToSvelteConverter extends Command {
   }
 
   // After processing, write the final Svelte file content to the targetFilePath.
-  const finalSvelteFileContent = constructFinalSvelteFile(stringCopy);
-  await fs.writeFile(targetFilePath, finalSvelteFileContent);
+    const finalSvelteFileContent = createSvelteFileContent(stringCopy);
+    await FileSystemOps.writeFileAsync(targetFilePath, finalSvelteFileContent);
 }
 }
 
