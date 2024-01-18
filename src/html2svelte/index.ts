@@ -64,7 +64,7 @@ export function splitHTMLTree(prefix: string, root: HTMLElement): BlockData[] {
   return processNode(root);
 }
 
-export const run = async ({
+export const convertHtmlToSvelte = async ({
   prefix,
   htmlString,
   onFinalFileComplete,
@@ -129,7 +129,7 @@ export const run = async ({
     parser: 'html',
   });
 
-  onFinalFileComplete(firstBlock.componentName, formattedFullFile);
+  onFinalFileComplete(firstBlock.componentName, formattedFullFile); 
 
   return {
     stringCopy: replaceHtmlWithComponent(htmlString, firstBlock),
