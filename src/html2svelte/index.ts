@@ -1,164 +1,163 @@
-import parser from "node-html-parser";
+import parser, { HTMLElement } from "node-html-parser";
 
-// check if this is something we'll want to make a component out of
-function hasClassAttribute(node: any) {
-  return node.rawAttrs && node.rawAttrs.includes("class");
+interface BlockData {
+    level: number;
+    start: number;
+    end: number;
+    componentName: string;
+    newComp: string;
+    diff: number;
 }
 
-// split the html tree into blocks
-export function splitHTMLTree(prefix: string, root: any) {
-  let results: any[] = [];
-  let lastLevel = 0;
+function hasClassAttribute(node: HTMLElement): boolean {
+    return node.rawAttrs?.includes("class");
+}
 
-  // recursively process the tree
-  function processNode(prefix: string, node: any, level = 0) {
-    level++;
-    let block = [{ level, node }];
-    for (let child of node.childNodes) {
-      let childBlocks = processNode(prefix, child, level);
-      block = block.concat(childBlocks);
-    }
+function extractComponentName(
+    node: HTMLElement,
+    prefix: string
+): string | null {
+    const classMatch = node.rawAttrs?.match(/class="([^"]*)"/);
+    if (!classMatch || !classMatch[1].startsWith(prefix)) return null;
 
-    // if this is a block we want to make a component out of
-    // then we should process it
-    if (hasClassAttribute(node)) {
-      // pull the class value out of the node
-      const attrs = node.rawAttrs || "";
-      const nodeClasses = attrs.match(/class="(.*)"/);
-      if (!nodeClasses) return results;
-      const classList = nodeClasses[1].split('" ');
-      let actualClassName = classList[0];
-      let newClassList = actualClassName.split(" ");
-      let firstClassValue = newClassList[0];
+    let firstClass = classMatch[1].split(" ")[0].slice(prefix.length);
+    return firstClass.split("-").map(capitalize).join("");
+}
 
-      // prefix check and removal
-      if (!firstClassValue.startsWith(prefix)) return results;
-      firstClassValue = firstClassValue.slice(prefix.length);
+function capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
-      // add it back into the class list
-      newClassList[0] = firstClassValue;
-
-      // concat all the classes into a single string
-      let componentName = newClassList
-        .map((c: any) => c.replace(/-([a-z])/g, (g: any) => g[1].toUpperCase()))
-        .join("_");
-
-      // capitalize the first letter
-      componentName = componentName[0].toUpperCase() + componentName.slice(1);
-
-      const newComp = `<${componentName} />`;
-
-      // extract values of interest (emphasis on start and end)
-      let [start, end] = node.range;
-      let range = end - start;
-
-      const data = {
+function createBlockData(
+    node: HTMLElement,
+    componentName: string,
+    level: number
+): BlockData {
+    const [start, end] = node.range;
+    const newComp = `<${componentName} />`;
+    return {
         level: level - 2,
-        range,
         start,
         end,
         componentName,
         newComp,
-        change: level - lastLevel,
-        diff: range - newComp.length,
-      };
-      results.push(data);
+        diff: end - start - newComp.length,
+    };
+}
+
+export function splitHTMLTree(prefix: string, root: HTMLElement): BlockData[] {
+    function processNode(node: HTMLElement, level: number = 0): BlockData[] {
+        const blocks: BlockData[] = node.childNodes.flatMap((child) =>
+            child instanceof HTMLElement ? processNode(child, level + 1) : []
+        );
+
+        if (hasClassAttribute(node)) {
+            const componentName = extractComponentName(node, prefix);
+            if (componentName) {
+                blocks.push(createBlockData(node, componentName, level));
+            }
+        }
+        return blocks;
     }
 
-    return results;
-  }
-
-  const blocks = processNode(prefix, root);
-
-  return blocks;
+    return processNode(root);
 }
 
 export const run = ({
-  prefix,
-  htmlString,
-  onFinalFileComplete,
+    prefix,
+    htmlString,
+    onFinalFileComplete,
 }: {
-  prefix: string;
-  htmlString: string;
-  onFinalFileComplete: any;
+    prefix: string;
+    htmlString: string;
+    onFinalFileComplete: (fileName: string, fileContent: string) => void;
 }) => {
-  let stringCopy = htmlString;
-  // parse our html string into a DOM tree - include everything
-  const htmlTree = parser.parse(htmlString, {
-    lowerCaseTagName: true,
-    comment: false,
-    voidTag: {
-      tags: [
-        "area",
-        "base",
-        "br",
-        "col",
-        "embed",
-        "hr",
-        "img",
-        "input",
-        "link",
-        "meta",
-        "param",
-        "source",
-        "track",
-        "wbr",
-      ],
-    },
-    blockTextElements: {
-      script: true,
-      noscript: true,
-      style: true,
-      pre: true,
-    },
-  });
+    const htmlTree = parser.parse(htmlString, {
+        lowerCaseTagName: true,
+        comment: false,
+        voidTag: {
+            tags: [
+                "area",
+                "base",
+                "br",
+                "col",
+                "embed",
+                "hr",
+                "img",
+                "input",
+                "link",
+                "meta",
+                "param",
+                "source",
+                "track",
+                "wbr",
+            ],
+        },
+        blockTextElements: {
+            script: true,
+            noscript: true,
+            style: true,
+            pre: true,
+        },
+    });
 
-  let blocks = splitHTMLTree(prefix, htmlTree);
+    let blocks = splitHTMLTree(prefix, htmlTree);
+    if (blocks.length === 0) return { stringCopy: htmlString, blocks };
 
-  // pop off the first block and update all other blocks accordingly based on if this
-  // block is inside another block or not
-  const firstBlock = blocks.shift();
+    const firstBlock = blocks.shift();
+    if (!firstBlock) return { stringCopy: htmlString, blocks: [] };
 
-  // update all other blocks
-  for (let i = 0; i < blocks.length; i += 1) {
-    const block = blocks[i];
-    let isInside = firstBlock.start > block.start && firstBlock.end < block.end;
+    adjustBlocks(firstBlock, blocks);
 
-    if (isInside) {
-      block.end -= firstBlock.diff;
-    } else {
-      block.start -= firstBlock.diff;
-      block.end -= firstBlock.diff;
-    }
-  }
+    const firstBlockString = htmlString.substring(
+        firstBlock.start,
+        firstBlock.end
+    );
+    const importString = buildImportString(firstBlockString);
+    const fullFile = `<script>\n${importString}</script>\n${firstBlockString}\n`;
 
-  // extract the html from the first block that we'll replace with a component
-  const firstBlockString = stringCopy.substring(
-    firstBlock.start,
-    firstBlock.end
-  );
+    onFinalFileComplete(
+        firstBlock.componentName,
+        removeEmptyScriptTags(fullFile)
+    );
 
-  // get all nested component based on <[A-Z].* \/> regex
-  const allTags: any[] = firstBlockString.match(/<[A-Z].* \/>/g) ?? [];
-
-  // add import statements for all the nested components
-  let importString = "";
-  for (let i = 0; i < allTags.length; i += 1) {
-    const tag = allTags[i];
-    const componentName = tag.slice(1, tag.length - 3);
-    importString += `import ${componentName} from './${componentName}.svelte';\n`;
-  }
-
-  // build full file
-  const fullFile = `<script>\n${importString}\n</script>\n${firstBlockString}\n<style>\n${""}\n</style>\n`;
-
-  onFinalFileComplete(firstBlock.componentName, fullFile);
-
-  // finally replace the html with the component tag
-  stringCopy =
-    stringCopy.substring(0, firstBlock.start) +
-    firstBlock.newComp +
-    stringCopy.substring(firstBlock.end, stringCopy.length);
-
-  return { stringCopy, blocks };
+    return {
+        stringCopy: replaceHtmlWithComponent(htmlString, firstBlock),
+        blocks,
+    };
 };
+
+function adjustBlocks(firstBlock: BlockData, blocks: BlockData[]) {
+    blocks.forEach((block) => {
+        const offset = block.start >= firstBlock.start ? firstBlock.diff : 0;
+        block.start -= offset;
+        block.end -= offset;
+    });
+}
+
+function buildImportString(htmlString: string): string {
+    return (htmlString.match(/<[A-Z].* \/>/g) ?? [])
+        .map(
+            (tag) =>
+                `import ${tag.slice(1, -3)} from './${tag.slice(
+                    1,
+                    -3
+                )}.svelte';`
+        )
+        .join("\n");
+}
+
+function replaceHtmlWithComponent(
+    htmlString: string,
+    block: BlockData
+): string {
+    return (
+        htmlString.slice(0, block.start) +
+        block.newComp +
+        htmlString.slice(block.end)
+    );
+}
+
+function removeEmptyScriptTags(htmlString: string): string {
+    return htmlString.replace(/<script>\s*<\/script>/g, "");
+}

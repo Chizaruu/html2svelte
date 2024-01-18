@@ -1,111 +1,125 @@
 const { flags, Command } = require("@oclif/command");
 const { cli } = require("cli-ux");
-import { run } from "../html2svelte/index";
-import fs from "fs";
+const fs = require("fs").promises;
+const fsSync = require("fs");
+const path = require("path");
+import { run as convertHtmlToSvelte } from "../html2svelte/index";
 
-// read file
-export const readFile = (file: any) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(file, "utf8", (err: any, data: any) => {
-      if (err) reject(err);
-      else resolve(data);
-    });
-  });
-};
-
-class ConvertCommand extends Command {
-  async run() {
-    const { flags, args } = this.parse(ConvertCommand);
-
-    cli.action.start("Converting");
-
-    const fileName = args.file;
-
-    const dir = "./build";
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir);
-    }
-
-    // read to string
-    let htmlString = await readFile(fileName);
-
-    const onFinalFileComplete = (fileName: string, fileString: string) => {
-      // write the file
-      fs.writeFile(
-        `${flags.outDir}/${fileName}.svelte`,
-        fileString,
-        function (err: any) {
-          if (err) throw err;
-        }
-      );
-    };
-
-    // keep running until there are no more blocks
-    while (true) {
-      let { stringCopy, blocks } = run({
-        prefix: flags.prefix,
-        htmlString: htmlString as string,
-        onFinalFileComplete,
-      });
-      let remainingBlocks = blocks.length;
-      htmlString = stringCopy;
-      if (remainingBlocks <= 0) break;
-    }
-
-    // get all nested component based on <[A-Z].* \/> regex
-    const allTags: any[] = (htmlString as string).match(/<[A-Z].* \/>/g) ?? [];
-
-    // add import statements for all the nested components
-    let importString = "";
-    for (let i = 0; i < allTags.length; i += 1) {
-      const tag = allTags[i];
-      const componentName = tag.slice(1, tag.length - 3);
-      importString += `import ${componentName} from './${componentName}.svelte';\n`;
-    }
-
-    // build full file
-    const fullFile = `<script>\n${importString}\n</script>\n${htmlString}\n\n<style>\n${""}\n</style>\n`;
-
-    // write the top level file
-    fs.writeFile(
-      `${flags.outDir}/App.svelte`,
-      fullFile as string,
-      function (err: any) {
-        if (err) throw err;
-      }
-    );
-
-    cli.action.stop("done!");
-
-    console.log(
-      "✅ Looks like we did it!\n\n🚀 Check the build folder for your new Svelte components!\n\n🤘 Thanks for using html2svelte!"
-    );
-  }
+// Asynchronously reads a file and returns its content
+async function readFileAsync(filePath: any) {
+    return fs.readFile(filePath, "utf8");
 }
 
-ConvertCommand.description = "Convert a HTML file to Svelte Components";
+class HtmlToSvelteConverter extends Command {
+    async run() {
+        try {
+            const { flags, args } = this.parse(HtmlToSvelteConverter);
+            cli.action.start("Starting HTML to Svelte conversion");
 
-ConvertCommand.args = [
-  {
-    name: "file",
-    description: "html file to convert",
-    required: false,
-  },
+            const htmlFilePath = args.file;
+            await this.ensureOutputDirectory(flags.outDir);
+            let htmlContent = await readFileAsync(htmlFilePath);
+
+            await this.processHtmlConversion(htmlContent, flags);
+
+            cli.action.stop("Conversion complete!");
+            console.log(
+                "✅ All HTML files have been successfully converted to Svelte components."
+            );
+        } catch (error) {
+            console.error(
+                "An error occurred during the conversion process:",
+                error
+            );
+            cli.action.stop("Conversion failed.");
+        }
+    }
+
+    async ensureOutputDirectory(directoryPath: any) {
+        if (!fsSync.existsSync(directoryPath)) {
+            await fs.mkdir(directoryPath);
+        }
+    }
+
+    async processHtmlConversion(
+        htmlContent: string,
+        flags: { prefix: string; outDir: string }
+    ) {
+        let isConversionComplete = false;
+        let stringCopy = htmlContent;
+
+        while (!isConversionComplete) {
+            const conversionResult = convertHtmlToSvelte({
+                prefix: flags.prefix,
+                htmlString: stringCopy,
+                onFinalFileComplete: this.handleFileGeneration.bind(
+                    this,
+                    flags.outDir
+                ),
+            });
+
+            isConversionComplete = conversionResult.blocks.length === 0;
+            stringCopy = conversionResult.stringCopy;
+        }
+
+        const finalSvelteFileContent =
+            this.constructFinalSvelteFile(stringCopy);
+        await fs.writeFile(
+            path.join(flags.outDir, "App.svelte"),
+            finalSvelteFileContent
+        );
+    }
+
+    handleFileGeneration(
+        outputDirectory: string,
+        fileName: string,
+        fileContent: string
+    ) {
+        const filePath = path.join(outputDirectory, `${fileName}.svelte`);
+        return fs.writeFile(filePath, fileContent);
+    }
+
+    constructFinalSvelteFile(htmlContent: any) {
+        const importStatements = this.generateImportStatements(htmlContent);
+        return `<script>\n${importStatements}\n</script>\n${htmlContent}\n\n<style>\n\n</style>\n`;
+    }
+
+    generateImportStatements(htmlContent: string) {
+        const componentTags = htmlContent.match(/<[A-Z].* \/>/g) ?? [];
+        return componentTags
+            .map(
+                (tag) =>
+                    `import ${tag.slice(1, -3)} from './${tag.slice(
+                        1,
+                        -3
+                    )}.svelte';`
+            )
+            .join("\n");
+    }
+}
+
+HtmlToSvelteConverter.description =
+    "Converts a HTML file to Svelte components.";
+
+HtmlToSvelteConverter.args = [
+    {
+        name: "file",
+        description: "Path to the HTML file to be converted",
+        required: true,
+    },
 ];
 
-ConvertCommand.hidden = false;
-
-ConvertCommand.flags = {
-  outDir: flags.string({
-    char: "o",
-    description: "folder to output the converted files to",
-    default: "build",
-  }),
-  prefix: flags.string({
-    char: "p",
-    description: "prefix to used to determine which elements to convert",
-    default: "comp_",
-  }),
+HtmlToSvelteConverter.flags = {
+    outDir: flags.string({
+        char: "o",
+        description: "Directory to output the converted Svelte files",
+        default: "build",
+    }),
+    prefix: flags.string({
+        char: "p",
+        description: "Prefix used to identify elements for conversion",
+        default: "comp_",
+    }),
 };
 
-module.exports = ConvertCommand;
+module.exports = HtmlToSvelteConverter;
